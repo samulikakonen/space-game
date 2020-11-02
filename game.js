@@ -12,10 +12,10 @@
     container.appendChild(canvas);
 
     // Load sounds
-    var oof = new Audio("./oof.mp3");
-    oof.volume = 1;
-    oof.load();
-    var bgMusic = new Audio("./ChadCrouch-Algorithms.mp3");
+    var hit = new Audio("./media/sounds/hit.mp3");
+    hit.volume = 1;
+    hit.load();
+    var bgMusic = new Audio("./media/sounds/ChadCrouch-Algorithms.mp3");
     bgMusic.volume = 0.5;
     bgMusic.load();
 
@@ -24,28 +24,34 @@
 
     // Load player image
     var playerImage = new Image();
-    playerImage.src = "./potato.png";
-    var playerSize = 70;
+    playerImage.src = "./media/images/astronaut.png";
+    var playerSize = 230;
 
     // Load sos sign
     var sosImage = new Image();
-    sosImage.src = "./sos.png";
+    sosImage.src = "./media/images/sos.png";
 
-    // Load meteorite
-    var meteoriteImage = new Image();
-    meteoriteImage.src = "./rock.png";
+    // Load meteorites
+    var meteoriteImage1 = new Image();
+    meteoriteImage1.src = "./media/images/meteor1.png";
+
+    var meteoriteImage2 = new Image();
+    meteoriteImage2.src = "./media/images/meteor2.png";
+
+    var meteoriteImage3 = new Image();
+    meteoriteImage3.src = "./media/images/meteor3.png";
 
     // Load background images
     var bgSize = 500; //bg image size 500px x 500px
 
     var bg1 = new Image();
-    bg1.src = "./stars3.png";
+    bg1.src = "./media/images/stars3.png";
 
     var bg2 = new Image();
-    bg2.src = "./stars2.png";
+    bg2.src = "./media/images/stars2.png";
 
     var bg3 = new Image();
-    bg3.src = "./stars1.png";
+    bg3.src = "./media/images/stars1.png";
 
     // Background settings
     var background = {
@@ -62,11 +68,12 @@
 
     // Player settings
     var player = {
-        speed: 128,
+        speed: 192,
         lives: 5,
         points: 0,
         rotation: 'right',
-        sosSigns: []
+        sosSigns: [],
+        highScore: 0
     };
 
     // Meteorites
@@ -74,7 +81,8 @@
     var meteorites = {
         max: 10,
         speed: 256,
-        loc: []
+        loc: [],
+        image: []
     };
 
     // Keyboard controls
@@ -93,9 +101,16 @@
         player.x = canvas.width / 2;
         player.y = canvas.height / 2;
         player.lives = 5;
+        player.highScore = player.highScore < player.points ? player.points : player.highScore;
+        player.points = 0;
+        spawnMeteorites = true;
+
+        meteorites.max = 10;
+        meteorites.loc = [];
+        meteorites.image = [];
     }
 
-    // Helper for running sounds that can be played concurrently
+    // Helper for playing sounds that can be played concurrently
     const playAudio = (name, audio) => {
         if (!audioPool[name]) audioPool[name] = [];
         audioPool[name].push(audio.cloneNode().play());
@@ -111,8 +126,9 @@
             meteorites.loc.push({
                 x: canvas.width,
                 y: Math.floor(Math.random() * (canvas.height - 100)) + 1,
-                rotation: Math.floor(Math.random() * 359) + 1
             })
+            var rnd = Math.floor(Math.random() * 3) + 1
+            meteorites.image.push(rnd === 1 ? meteoriteImage1 : rnd === 2 ? meteoriteImage2 : meteoriteImage3);
         }
         meteoriteGenerator = false;
     }
@@ -122,7 +138,7 @@
     var update = (modifier) => {
         // Update background properties
         for (var i = 0; i < 3; i++) {
-            var speedModifier = i > 1 ? 1 * i : 1;
+            var speedModifier = i;//i > 1 ? 1 * i : 1;
             background.layers[i].x -= (background.speed * speedModifier) * modifier;
             if (background.layers[i].x + (500 * background.imagesX) < 0) {
                 background.layers[i].x = 0;
@@ -132,8 +148,6 @@
         if (window.focus && (bgMusic.ended || bgMusic.paused)) {
             bgMusic.play().catch(e => console.log("Error playing background music"))
         }
-
-
 
         // Up
         if (38 in keysDown || 87 in keysDown) {
@@ -173,14 +187,19 @@
             player.rotation = "Down-Right";
         }
 
-        // Check player lives
-        if (player.lives <= 0) spawnMeteorites = false;
+        // Check if player lives
+        if (player.lives <= 0) {
+            spawnMeteorites = false;
+            if ((32 in keysDown)) {
+                reset();
+            }
+        }
 
         if (spawnMeteorites) {
             // Check if generator is running (interal on)
             if (!meteoriteGenerator) {
                 meteoriteGenerator = true;
-                var rnd = Math.floor(Math.random() * 1000) + 200;
+                var rnd = Math.floor(Math.random() * (1000 - player.points * 10)) + 200;
                 meteoriteGenerator = setTimeout(generateMeteorite, rnd)
             }
 
@@ -189,11 +208,16 @@
                 meteorites.loc[i].x -= meteorites.speed * modifier;
             }
 
+            // Update max meteors
+            meteorites.max = 10 + Math.floor(player.points / 10);
+
             // Check if meteor collided with player or went outside viewport
             var meteoritesCopy = [...meteorites.loc];
+            var meteoritesImage = [...meteorites.image];
             for (var i = 0; i < meteoritesCopy.length; i++) {
                 if (meteoritesCopy[i].x + 100 <= 0) {
                     meteoritesCopy.splice(i, 1);
+                    meteoritesImage.splice(i, 1);
                     player.points += 1;
                     break;
                 }
@@ -202,7 +226,8 @@
                     player.y <= (meteoritesCopy[i].y + 100) &&
                     meteoritesCopy[i].y <= (player.y + playerSize)) {
                     meteoritesCopy.splice(i, 1);
-                    playAudio("oof", oof);
+                    meteoritesImage.splice(i, 1);
+                    playAudio("hit", hit);
                     player.sosSigns.push({ x: player.x, y: player.y })
                     player.lives = player.lives - 1;
                     setTimeout(() => {
@@ -211,6 +236,7 @@
                 }
             }
             meteorites.loc = meteoritesCopy;
+            meteorites.image = meteoritesImage;
         }
     }
 
@@ -246,28 +272,31 @@
             context.font = "32px Helvetica";
             context.fillText("Lives: " + player.lives, 50, 100);
             context.fillText("Points: " + player.points, 50, 140);
+            context.fillText("High score: " + player.highScore, 50, 180);
 
             // Render meteorites
             for (var i = 0; i < meteorites.loc.length; i++) {
-                context.drawImage(meteoriteImage, meteorites.loc[i].x, meteorites.loc[i].y);
+                context.drawImage(meteorites.image[i], meteorites.loc[i].x, meteorites.loc[i].y);
             }
         } else {
             context.fillStyle = "green";
             context.textAlign = "left";
             context.font = "32px Helvetica";
+            context.fillText("Lives: " + player.lives, 50, 100);
             context.fillText("Points: " + player.points, 50, 140);
+            context.fillText("High score: " + player.highScore, 50, 180);
             context.fillStyle = "red";
             context.textAlign = "center";
             context.font = "42px Helvetica";
-            context.fillText("You is död", canvas.width / 2, canvas.height / 2);
+            context.fillText("You died!", canvas.width / 2, canvas.height / 2);
+            context.fillText("Press space to play again", canvas.width / 2, canvas.height / 2 + 50);
         }
 
         // Debug texts
-        context.fillStyle = "green";
-        context.textAlign = "center";
-        context.font = "28px Helvetica";
-        context.fillText("Rotation: " + player.rotation, canvas.width / 2, 30);
-
+        //context.fillStyle = "green";
+        //context.textAlign = "center";
+        //context.font = "28px Helvetica";
+        //context.fillText("max meteorites: " + meteorites.max, canvas.width / 2, 30);
 
     }
 
